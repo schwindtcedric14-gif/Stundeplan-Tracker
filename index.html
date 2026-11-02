@@ -58,6 +58,7 @@ input { font: inherit; padding: 9px 11px; border-radius: 9px; border: 1px solid 
 .side .label { transition: opacity .15s; }
 .side.collapsed .label { opacity: 0; pointer-events: none; }
 .side .spacer { flex: 1; }
+@media (max-width: 640px) { .side .long { display: none; } }
 .side .demo-badge { font-size: 11px; font-weight: 700; color: var(--subst); background: var(--subst-soft); border-radius: 6px;
   padding: 4px 8px; margin: 0 4px 6px; text-align: center; white-space: nowrap; overflow: hidden; }
 .side.collapsed .demo-badge { padding: 4px 0; }
@@ -159,12 +160,67 @@ th { color: var(--muted); font-weight: 500; font-size: .9em; position: sticky; t
   .row.k4 { grid-template-columns: 1fr 1fr; }
   .row.k3, .row.k2 { grid-template-columns: 1fr; }
 }
+/* Tagesansicht & Karten-Liste (nur Handy) */
+.days { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; margin-bottom: 10px; }
+.days button { background: var(--lesson); color: var(--text); border-radius: 9px; padding: 6px 0; font-weight: 600; font-size: 14px; line-height: 1.2; }
+.days button small { display: block; font-weight: 400; font-size: 11px; color: var(--muted); }
+.days button.today { box-shadow: inset 0 0 0 2px var(--accent); }
+.days button.on { background: var(--accent); color: #fff; }
+.days button.on small { color: #fff; }
+.daylist { display: grid; gap: 6px; }
+.dayrow { display: grid; grid-template-columns: 46px 1fr; gap: 8px; align-items: stretch; }
+.dayrow .time { font-size: 12px; color: var(--muted); text-align: right; line-height: 1.2; padding-top: 6px; }
+.dayrow .time b { display: block; color: var(--text); font-size: 15px; }
+.dayrow .slot { min-height: 52px; }
+.dayrow .cell { font-size: 15px; padding: 8px 10px; }
+.evlist { display: grid; gap: 6px; max-height: none; }
+.ev { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; padding: 9px 12px; border-radius: 10px; background: var(--lesson); border-left: 3px solid var(--line); }
+.ev.free { border-left-color: var(--free); } .ev.subst { border-left-color: var(--subst); }
+.ev .s { font-weight: 600; }
+.ev .d, .ev .t { font-size: 12px; color: var(--muted); }
+.ev .t { grid-column: 1 / -1; }
+
 @media (max-width: 640px) {
-  .side { position: fixed; left: 0; top: 0; box-shadow: 4px 0 20px rgba(0,0,0,.15); }
-  .side.collapsed { box-shadow: none; }
-  .content { padding: 12px 16px 28px 74px; }
+  body { font-size: 15px; }
+  /* Seitenleiste wird zur Leiste unten */
+  #appView { display: block; }
+  .side, .side.collapsed { position: fixed; top: auto; bottom: 0; left: 0; right: 0; width: 100%; height: auto;
+    flex-direction: row; justify-content: space-around; gap: 0; padding: 4px 4px calc(4px + env(safe-area-inset-bottom));
+    border-right: 0; border-top: 1px solid var(--line); box-shadow: 0 -4px 16px rgba(0,0,0,.08); }
+  .side .brand, .side .spacer, .side .demo-badge { display: none; }
+  .side .nav { flex-direction: column; gap: 2px; width: auto; flex: 1; padding: 6px 2px; font-size: 10.5px; text-align: center; }
+  .side .nav svg.i { width: 22px; height: 22px; }
+  .side .label, .side.collapsed .label { opacity: 1; pointer-events: auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+  .content { padding: 12px 12px calc(84px + env(safe-area-inset-bottom)); }
+  .top { gap: 8px; }
+  .top h1 { width: 100%; font-size: 22px; }
+  .chips { width: 100%; }
+  .chip { flex: 1; text-align: center; padding: 7px 4px; }
+  .dates { width: 100%; }
+  .dates input { flex: 1; font-size: 16px; min-width: 0; }
   .range-info { margin-left: 0; }
-  .bar { grid-template-columns: 90px 1fr 28px; }
+  .card { padding: 12px 14px; }
+  .kpi .v { font-size: 30px; }
+  .row { gap: 8px; margin-bottom: 8px; }
+  .bar { grid-template-columns: 84px 1fr 28px; }
+  .months { height: 170px; gap: 8px; }
+  .plan-head { flex-direction: column; align-items: stretch; }
+  .plan-head .seg { display: grid; grid-template-columns: repeat(4, 1fr); }
+  .plan-head .seg button { padding: 7px 2px; }
+  #evFilter { grid-template-columns: repeat(3, 1fr) !important; }
+  #evFilter button { white-space: nowrap; }
+  .row.k3 { grid-template-columns: 1fr 1fr; }
+  .row.k3 > :first-child { grid-column: 1 / -1; }
+  .weeknav { justify-content: space-between; }
+  .weeknav span { min-width: 0; flex: 1; }
+  .tt { min-width: 0; grid-template-columns: 30px repeat(5, 1fr); gap: 3px; }
+  .tt .time { font-size: 0; padding-right: 2px; }
+  .tt .time b { font-size: 13px; }
+  .heat { min-height: 50px; padding: 4px 2px; text-align: center; align-items: center; }
+  .heat b { font-size: 17px; }
+  .heat span { font-size: 10px; }
+  .heat .split { width: 100%; }
+  .scroll { max-height: none; }
 }
 </style>
 </head>
@@ -199,7 +255,7 @@ th { color: var(--muted); font-weight: 500; font-size: .9em; position: sticky; t
       <svg class="i" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.6 3.4-5.5 6.5-5.5s5.7 1.9 6.5 5.5"/><circle cx="17.5" cy="9" r="2.5"/><path d="M17 14.6c2.3.3 3.9 1.9 4.5 4.4"/></svg><span class="label">Lehrkräfte</span>
     </button>
     <button class="nav" data-tab="events" type="button" title="Ausfälle & Vertretungen">
-      <svg class="i" viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1.2"/><circle cx="4.5" cy="12" r="1.2"/><circle cx="4.5" cy="18" r="1.2"/></svg><span class="label">Ausfälle & Vertretungen</span>
+      <svg class="i" viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1.2"/><circle cx="4.5" cy="12" r="1.2"/><circle cx="4.5" cy="18" r="1.2"/></svg><span class="label">Ausfälle<span class="long"> & Vertretungen</span></span>
     </button>
     <button class="nav" data-tab="plan" type="button" title="Stundenplan">
       <svg class="i" viewBox="0 0 24 24"><rect x="3" y="4.5" width="18" height="16" rx="2"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4M8 14h2M14 14h2M8 17.5h2"/></svg><span class="label">Stundenplan</span>
@@ -265,7 +321,9 @@ const store = {
   del(k, area = localStorage) { try { area.removeItem(k); } catch {} },
 };
 
-const state = { session: null, info: null, stats: null, weekDate: null, view: "week", week: null, filter: "all" };
+const state = { session: null, info: null, stats: null, weekDate: null, view: "week", week: null, filter: "all", day: null };
+const phone = window.matchMedia("(max-width: 640px)");
+phone.addEventListener("change", () => { if (state.stats) { renderEvents(state.stats); renderPlan(); } });
 
 $("#username").value = store.get("untisUser") || "";
 
@@ -509,10 +567,18 @@ function renderEvents(s) {
       <div class="seg" id="evFilter">
         <button data-f="all" class="${state.filter === "all" ? "on" : ""}" type="button">Alle (${s.events.length})</button>
         <button data-f="free" class="${state.filter === "free" ? "on" : ""}" type="button">Frei (${nFree})</button>
-        <button data-f="subst" class="${state.filter === "subst" ? "on" : ""}" type="button">Vertretung (${s.events.length - nFree})</button>
+        <button data-f="subst" class="${state.filter === "subst" ? "on" : ""}" type="button">${phone.matches ? "Vertr." : "Vertretung"} (${s.events.length - nFree})</button>
       </div>
     </div>
-    ${list.length ? `<div class="scroll"><table>
+    ${list.length && phone.matches ? `<div class="evlist">${list.map((e) => `
+      <div class="ev ${e.free ? "free" : "subst"}">
+        <span class="s">${esc(e.subject)}</span>
+        ${e.free ? '<span class="tag free">frei</span>' : `<span class="tag subst">Vertretung${e.manual ? " *" : ""}</span>`}
+        <span class="d">${fmtDate(e.date)} · ${fmtTime(e.start)}</span>
+        <span class="t">${esc(e.original.join(", "))}${e.status === "substitution" && e.current.length ? " → " + esc(e.current.join(", ")) : ""}</span>
+      </div>`).join("")}</div>
+      ${s.manual.length ? `<p class="hint">* nachgetragen, in Untis als normaler Unterricht eingetragen</p>` : ""}`
+    : list.length ? `<div class="scroll"><table>
       <thead><tr><th>Datum</th><th>Zeit</th><th>Fach</th><th>Art</th><th>Lehrkraft</th></tr></thead>
       <tbody>${list.map((e) => `<tr>
         <td>${fmtDate(e.date)}</td><td>${fmtTime(e.start)}</td><td>${esc(e.subject)}</td>
@@ -534,9 +600,9 @@ async function loadWeek() {
   } catch (e) { showError(e); }
 }
 
-$("#prev").addEventListener("click", () => { state.weekDate = addDays(state.weekDate, -7); loadWeek(); });
-$("#next").addEventListener("click", () => { state.weekDate = addDays(state.weekDate, 7); loadWeek(); });
-$("#thisWeek").addEventListener("click", () => { state.weekDate = state.info.today; loadWeek(); });
+$("#prev").addEventListener("click", () => { state.weekDate = addDays(state.weekDate, -7); if (state.day) state.day = addDays(state.day, -7); loadWeek(); });
+$("#next").addEventListener("click", () => { state.weekDate = addDays(state.weekDate, 7); if (state.day) state.day = addDays(state.day, 7); loadWeek(); });
+$("#thisWeek").addEventListener("click", () => { state.weekDate = state.info.today; state.day = null; loadWeek(); });
 $$(".seg [data-view]").forEach((b) => b.addEventListener("click", () => setView(b.dataset.view)));
 
 function setView(v) {
@@ -567,11 +633,38 @@ function cellFor(l) {
   </div>`;
 }
 
+function renderDay(w, outside) {
+  if (state.day === null || !w.days.includes(state.day)) {
+    state.day = w.days.includes(w.today) ? w.today : w.days[0];
+  }
+  let html = `<div class="days">` + w.days.map((d, i) =>
+    `<button type="button" data-day="${d}" class="${d === state.day ? "on" : ""} ${d === w.today ? "today" : ""}">${DAYS[i].slice(0, 2)}<small>${fmtShort(d)}</small></button>`).join("") + `</div>`;
+  if (outside) {
+    html += `<p class="empty">Für diese Woche gibt es keine Daten (geladen bis ${fmtDate(state.info.loadedTo)}).</p>`;
+  } else {
+    html += `<div class="daylist">`;
+    for (const g of w.grid) {
+      const ls = w.lessons.filter((l) => l.date === state.day && l.start < g.end && g.start < l.end
+        && !(l.status === "cancelled" && !l.free));
+      html += `<div class="dayrow"><div class="time"><b>${esc(g.name)}.</b>${fmtTime(g.start)}</div>
+        <div class="slot">${ls.length ? ls.map(cellFor).join("") : `<div class="cell none"></div>`}</div></div>`;
+    }
+    html += `</div>`;
+  }
+  $("#plan").innerHTML = html;
+  $$("#plan [data-day]").forEach((b) => b.addEventListener("click", () => { state.day = b.dataset.day; renderWeek(); }));
+}
+
 function renderWeek() {
   const w = state.week;
   if (!w) return;
   $("#weekLabel").textContent = `${fmtShort(w.days[0])} – ${fmtShort(w.days[4])}`;
   const outside = w.days[4] < state.info.year.from || w.days[0] > state.info.loadedTo;
+  if (phone.matches) {
+    renderDay(w, outside);
+    renderWeekLegend();
+    return;
+  }
   let html = `<div class="tt"><div></div>` + w.days.map((d, i) =>
     `<div class="h ${d === w.today ? "today" : ""}">${DAYS[i].slice(0, 2)}<small>${fmtShort(d)}</small></div>`).join("");
   for (const g of w.grid) {
@@ -585,6 +678,10 @@ function renderWeek() {
   html += `</div>`;
   if (outside) html = `<p class="empty">Für diese Woche gibt es keine Daten (geladen bis ${fmtDate(state.info.loadedTo)}).</p>`;
   $("#plan").innerHTML = html;
+  renderWeekLegend();
+}
+
+function renderWeekLegend() {
   $("#planLegend").innerHTML = `
     <span><span class="dot" style="background:var(--free)"></span>frei</span>
     <span><span class="dot" style="background:var(--subst)"></span>Vertretung (* nachgetragen)</span>
@@ -617,6 +714,13 @@ function renderHeat(mode) {
       const c = s.heat[wd][i];
       if (!c.total) { html += `<div class="heat" style="border-style:dashed"></div>`; continue; }
       const v = h.value(c), a = max ? v / max : 0;
+      if (phone.matches) {
+        html += `<div class="heat ${v && v === max ? "top" : ""}" style="background:color-mix(in srgb, ${h.color} ${Math.round(a * 55)}%, var(--card))">
+          <b>${v}</b>${mode === "both"
+            ? `<span class="split"><i style="width:${v ? (c.free / v) * 100 : 0}%;background:var(--free)"></i><i style="width:${v ? (c.subst / v) * 100 : 0}%;background:var(--subst)"></i></span>`
+            : `<span>${Math.round((v / c.total) * 100)} %</span>`}</div>`;
+        continue;
+      }
       const detail = mode === "both"
         ? `<span class="split"><i style="width:${v ? (c.free / v) * 100 : 0}%;background:var(--free)"></i><i style="width:${v ? (c.subst / v) * 100 : 0}%;background:var(--subst)"></i></span>
            <span>${c.free}× frei · ${c.subst}× Vertr.</span>`

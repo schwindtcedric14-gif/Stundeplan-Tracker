@@ -548,17 +548,34 @@ def load_demo():
     return year_start, year_end, load_to, grid, out
 
 
-def create_session(loaded, demo=False):
+def fill_session(sid, loaded):
+    """Geladene Untis-Daten in die Sitzung schreiben (beim Login und beim Aktualisieren)."""
     year_start, year_end, load_to, grid, lessons = loaded
     items = prepare(lessons)
-    grid = grid or guess_grid(items)
+    SESSIONS[sid].update({"items": items, "grid": grid or guess_grid(items), "yearStart": year_start,
+                          "yearEnd": year_end, "loadTo": load_to, "loadedAt": time.time()})
+
+
+def create_session(loaded, demo=False, cred=None):
     now = time.time()
-    for sid in [k for k, v in SESSIONS.items() if now - v["created"] > SESSION_TTL]:
+    # Sitzungen, die 3 Stunden nicht benutzt wurden, samt Zugangsdaten verwerfen
+    for sid in [k for k, v in SESSIONS.items() if now - v["seen"] > SESSION_TTL]:
         del SESSIONS[sid]
     sid = secrets.token_urlsafe(16)
-    SESSIONS[sid] = {"items": items, "grid": grid, "yearStart": year_start, "yearEnd": year_end,
-                     "loadTo": load_to, "created": now, "demo": demo}
+    # cred (Untis-Login) liegt nur im Arbeitsspeicher, damit "Aktualisieren" ohne neues Anmelden geht
+    SESSIONS[sid] = {"created": now, "seen": now, "demo": demo, "cred": cred}
+    fill_session(sid, loaded)
     return sid
+
+
+MIN_REFRESH_SECONDS = 20
+
+
+def refresh_session(sid):
+    s = SESSIONS[sid]
+    if time.time() - s["loadedAt"] < MIN_REFRESH_SECONDS:
+        return  # gerade erst geladen – Untis nicht unnötig belasten
+    fill_session(sid, load_demo() if s["demo"] else load_untis(*s["cred"]))
 
 
 def session_info(sid):
@@ -568,6 +585,7 @@ def session_info(sid):
         "ok": True, "session": sid, "demo": s["demo"], "today": today.isoformat(),
         "year": {"from": s["yearStart"].isoformat(), "to": s["yearEnd"].isoformat()},
         "loadedTo": s["loadTo"].isoformat(),
+        "loadedAt": s["loadedAt"],
         "ranges": halves(s["yearStart"], s["yearEnd"]),
         "grid": s["grid"],
         "stats": compute_stats(s["items"], s["yearStart"], today, s["grid"]),
@@ -628,7 +646,7 @@ class Handler(BaseHTTPRequestHandler):
                 if len(FAILED[ip]) >= MAX_FAILED_LOGINS:
                     return self._send(429, {"ok": False, "error": "Zu viele Fehlversuche – bitte 15 Minuten warten."})
                 try:
-                    return self._send(200, session_info(create_session(load_untis(user, pw))))
+                    return self._send(200, session_info(create_session(load_untis(user, pw), cred=(user, pw))))
                 except UntisError as e:
                     if "falsch" in str(e):
                         FAILED[ip].append(now)
@@ -644,6 +662,13 @@ class Handler(BaseHTTPRequestHandler):
                     frm, to = to, frm
                 s = SESSIONS[sid]
                 return self._send(200, {"ok": True, "stats": compute_stats(s["items"], frm, to, s["grid"])})
+            SESSIONS[sid]["seen"] = time.time()
+            if self.path == "/api/refresh":
+                refresh_session(sid)
+                return self._send(200, session_info(sid))
+            if self.path == "/api/logout":
+                SESSIONS.pop(sid, None)
+                return self._send(200, {"ok": True})
             if self.path == "/api/week":
                 return self._send(200, week(sid, parse_date(req.get("date") or dt.date.today().isoformat())))
             self._send(404, {"ok": False, "error": "Nicht gefunden"})

@@ -1,0 +1,634 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stundenplan Tracker</title>
+<style>
+:root {
+  --bg: #f5f6f8; --card: #ffffff; --text: #1b1e24; --muted: #6b7280; --line: #e5e7eb;
+  --free: #16a34a; --free-soft: #dcfce7; --subst: #ea580c; --subst-soft: #ffedd5;
+  --change: #2563eb; --change-soft: #dbeafe; --exam: #9333ea; --exam-soft: #f3e8ff;
+  --lesson: #f0f1f4; --accent: #2563eb; --err: #dc2626; --side: #ffffff;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #111317; --card: #1a1d23; --text: #e8eaee; --muted: #9aa1ad; --line: #2b2f37;
+    --free: #4ade80; --free-soft: #173a24; --subst: #fb923c; --subst-soft: #3f2615;
+    --change: #60a5fa; --change-soft: #172a45; --exam: #c084fc; --exam-soft: #2e1a40;
+    --lesson: #22262d; --accent: #60a5fa; --err: #f87171; --side: #16191e;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--text); font: clamp(14px, 0.55vw + 7px, 18px)/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+button { font: inherit; cursor: pointer; border: 0; }
+h2 { font-size: 1em; margin: 0 0 10px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: clamp(14px, 1.2vw, 24px) clamp(16px, 1.4vw, 28px); }
+.empty { color: var(--muted); font-size: 13px; margin: 0; }
+.error { color: var(--err); margin: 10px 0 0; }
+.muted { color: var(--muted); font-weight: 400; }
+svg.i { width: 1.45em; height: 1.45em; flex: none; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+/* ---------- Login ---------- */
+#loginView { min-height: 100vh; display: grid; place-items: center; padding: 16px; }
+#loginView[hidden] { display: none; }
+#loginView .card { width: 100%; max-width: 420px; padding: 24px; }
+#loginView h1 { font-size: 22px; margin: 0 0 4px; }
+#loginView p.sub { color: var(--muted); margin: 0 0 18px; }
+form { display: grid; gap: 10px; }
+label { display: grid; gap: 4px; font-size: 12px; color: var(--muted); }
+input { font: inherit; padding: 9px 11px; border-radius: 9px; border: 1px solid var(--line); background: var(--bg); color: var(--text); }
+.primary { font-weight: 600; padding: 10px 16px; border-radius: 9px; background: var(--accent); color: #fff; }
+.primary:disabled { opacity: .6; cursor: wait; }
+.link { background: none; color: var(--accent); padding: 0; font-weight: 500; }
+.hint { font-size: 12px; color: var(--muted); margin: 12px 0 0; }
+
+/* ---------- Layout mit Seitenleiste ---------- */
+#appView { display: grid; grid-template-columns: auto 1fr; min-height: 100vh; }
+#appView[hidden] { display: none; }
+.side { position: sticky; top: 0; height: 100vh; width: clamp(228px, 15vw, 290px); background: var(--side); border-right: 1px solid var(--line);
+  display: flex; flex-direction: column; gap: 2px; padding: 10px 8px; transition: width .18s ease; overflow: hidden; z-index: 20; }
+.side.collapsed { width: calc(1.45em + 38px); }
+.side .nav { display: flex; align-items: center; gap: 12px; width: 100%; padding: 9px 11px; border-radius: 9px;
+  background: none; color: var(--muted); text-align: left; white-space: nowrap; font-weight: 500; }
+.side .nav:hover { background: var(--lesson); color: var(--text); }
+.side .nav.on { background: var(--change-soft); color: var(--accent); }
+.side .brand { color: var(--text); font-weight: 700; margin-bottom: 8px; }
+.side .label { transition: opacity .15s; }
+.side.collapsed .label { opacity: 0; pointer-events: none; }
+.side .spacer { flex: 1; }
+.side .demo-badge { font-size: 11px; font-weight: 700; color: var(--subst); background: var(--subst-soft); border-radius: 6px;
+  padding: 4px 8px; margin: 0 4px 6px; text-align: center; white-space: nowrap; overflow: hidden; }
+.side.collapsed .demo-badge { padding: 4px 0; }
+
+.content { min-width: 0; padding: clamp(14px, 1.4vw, 28px) clamp(16px, 1.8vw, 36px) 16px; width: 100%; }
+.top { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin-bottom: 14px; }
+.top h1 { font-size: 1.45em; margin: 0 8px 0 0; }
+.chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.chip { background: var(--lesson); color: var(--text); font-weight: 500; padding: .4em .9em; border-radius: 99px; font-size: .93em; }
+.chip.on { background: var(--accent); color: #fff; }
+.dates { display: flex; align-items: center; gap: 6px; font-size: .93em; color: var(--muted); }
+.dates input { padding: .3em .6em; font-size: 1em; border-radius: 7px; }
+.range-info { font-size: .86em; color: var(--muted); margin-left: auto; }
+
+.panel[hidden] { display: none; }
+.row { display: grid; gap: clamp(10px, 1vw, 18px); margin-bottom: clamp(10px, 1vw, 18px); }
+.row.k4 { grid-template-columns: repeat(4, 1fr); }
+.row.k3 { grid-template-columns: 1.3fr 1fr 1fr; }
+.row.k2 { grid-template-columns: 1fr 1fr; }
+.kpi .v { font-size: clamp(28px, 2.7vw, 52px); font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.kpi .l { color: var(--muted); font-size: .86em; }
+.kpi.free .v { color: var(--free); } .kpi.subst .v { color: var(--subst); }
+.kpi h2 { font-size: .9em; color: var(--muted); font-weight: 500; margin-bottom: 4px; }
+.fire { background: linear-gradient(135deg, var(--subst-soft), var(--card) 70%); }
+.fire .v { color: var(--subst); }
+.flame { display: inline-block; margin-right: 4px; animation: flicker 1.6s ease-in-out infinite; transform-origin: 50% 90%; }
+@keyframes flicker { 0%,100% { transform: scale(1) rotate(-3deg); } 50% { transform: scale(1.12) rotate(3deg); } }
+@media (prefers-reduced-motion: reduce) { .flame { animation: none; } .side { transition: none; } }
+.dots { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 8px; }
+.dots span { width: .6em; height: .6em; border-radius: 2px; background: var(--free); }
+.notice { background: var(--subst-soft); color: var(--subst); padding: .6em .9em; border-radius: 10px; margin-bottom: clamp(10px, 1vw, 18px); font-size: .93em; }
+
+.bars { display: grid; gap: .55em; }
+.bar { display: grid; grid-template-columns: minmax(110px, 22%) 1fr 2.4em; gap: .7em; align-items: center; font-size: .95em; }
+.bar .n { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bar .t { height: .65em; border-radius: 99px; background: var(--line); overflow: hidden; }
+.bar .f { display: block; height: 100%; border-radius: 99px; }
+.bar .c { text-align: right; font-variant-numeric: tabular-nums; }
+.winner { font-size: .93em; margin: -4px 0 10px; color: var(--muted); }
+.winner b { color: var(--text); }
+
+.months { display: flex; gap: clamp(10px, 2vw, 40px); align-items: flex-end; height: max(160px, calc(100vh - 36em)); overflow-x: auto; }
+.month { flex: 1; min-width: 36px; display: flex; flex-direction: column; align-items: center; gap: 4px; height: 100%; }
+.stack { flex: 1; width: 100%; max-width: 90px; display: flex; flex-direction: column; justify-content: flex-end; gap: 2px; }
+.stack div { border-radius: 3px; }
+.month small { color: var(--muted); font-size: .86em; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: .86em; color: var(--muted); margin-top: 10px; }
+.dot { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+
+table { width: 100%; border-collapse: collapse; font-size: .95em; }
+th, td { text-align: left; padding: .5em .6em; border-bottom: 1px solid var(--line); }
+th { color: var(--muted); font-weight: 500; font-size: .9em; position: sticky; top: 0; background: var(--card); }
+.tag { font-size: .82em; font-weight: 600; padding: 2px 7px; border-radius: 99px; white-space: nowrap; }
+.tag.free { background: var(--free-soft); color: var(--free); }
+.tag.subst { background: var(--subst-soft); color: var(--subst); }
+.scroll { max-height: calc(100vh - 13em); overflow: auto; }
+
+/* ---------- Stundenplan ---------- */
+.plan-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.seg { display: inline-flex; flex-wrap: wrap; background: var(--lesson); border-radius: 9px; padding: 3px; }
+.seg button { background: none; color: var(--muted); padding: .4em .95em; font-size: .93em; border-radius: 7px; font-weight: 500; }
+.seg button.on { background: var(--card); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+.weeknav { display: flex; gap: 4px; align-items: center; font-size: .93em; }
+.weeknav button { background: var(--lesson); color: var(--text); padding: .35em .8em; border-radius: 7px; font-weight: 500; }
+.weeknav span { min-width: 120px; text-align: center; font-weight: 600; }
+.plan-wrap { overflow-x: auto; }
+.tt { display: grid; grid-template-columns: 4em repeat(5, minmax(92px, 1fr)); gap: clamp(4px, .45vw, 8px); min-width: 520px; }
+.tt .h { font-size: .9em; font-weight: 600; text-align: center; padding: 3px 0; border-radius: 7px; }
+.tt .h small { font-weight: 400; color: var(--muted); margin-left: 4px; }
+.tt .h.today { background: var(--change-soft); color: var(--change); }
+.tt .h.today small { color: var(--change); }
+.tt .time { font-size: .8em; color: var(--muted); text-align: right; padding-right: 4px; line-height: 1.2; }
+.tt .time b { display: block; color: var(--text); font-size: 1.2em; }
+.slot { display: grid; gap: 3px; min-height: max(46px, calc((100vh - 15em) / 6.5)); }
+.cell { border-radius: 8px; padding: .45em .7em; font-size: 1em; line-height: 1.25; background: var(--lesson); border-left: 3px solid var(--line); overflow: hidden; }
+.cell .s { font-weight: 600; font-size: 1.05em; }
+.cell .m { color: var(--muted); font-size: .9em; }
+.cell .b { font-size: .78em; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; }
+.cell.free { background: var(--free-soft); border-left-color: var(--free); }
+.cell.free .s { text-decoration: line-through; opacity: .7; }
+.cell.free .b { color: var(--free); }
+.cell.subst { background: var(--subst-soft); border-left-color: var(--subst); }
+.cell.subst .b { color: var(--subst); }
+.cell.change { background: var(--change-soft); border-left-color: var(--change); }
+.cell.change .b { color: var(--change); }
+.cell.exam { background: var(--exam-soft); border-left-color: var(--exam); }
+.cell.exam .b { color: var(--exam); }
+.cell.none { background: none; border: 1px dashed var(--line); }
+.heat { border-radius: 8px; padding: .4em .65em; font-size: .85em; min-height: max(46px, calc((100vh - 17em) / 6.5)); display: flex; flex-direction: column; justify-content: center; border: 1px solid var(--line); }
+.heat b { font-size: 1.3em; }
+.heat span { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.heat .split { display: flex; height: 5px; border-radius: 3px; overflow: hidden; background: var(--line); margin: 3px 0 1px; }
+.heat .split i { display: block; height: 100%; }
+.heat.top { outline: 2px solid var(--text); outline-offset: -2px; }
+.heat-sum { font-size: .95em; color: var(--muted); margin: 0 0 8px; }
+.heat-sum b { color: var(--text); }
+
+@media (max-width: 900px) {
+  .row.k4 { grid-template-columns: 1fr 1fr; }
+  .row.k3, .row.k2 { grid-template-columns: 1fr; }
+}
+@media (max-width: 640px) {
+  .side { position: fixed; left: 0; top: 0; box-shadow: 4px 0 20px rgba(0,0,0,.15); }
+  .side.collapsed { box-shadow: none; }
+  .content { padding: 12px 16px 28px 74px; }
+  .range-info { margin-left: 0; }
+  .bar { grid-template-columns: 90px 1fr 28px; }
+}
+</style>
+</head>
+<body>
+
+<!-- ---------- Anmeldung ---------- -->
+<div id="loginView">
+  <div class="card">
+    <h1>Stundenplan Tracker</h1>
+    <p class="sub">Wie oft hattest du frei oder Vertretung? Verbunden mit WebUntis (rs-einrich).</p>
+    <form id="login">
+      <label>Untis-Benutzername <input id="username" autocomplete="username" required></label>
+      <label>Passwort <input id="password" type="password" autocomplete="current-password" required></label>
+      <button class="primary" id="go" type="submit">Auswerten</button>
+    </form>
+    <p class="hint">Deine Daten gehen nur an WebUntis und werden nicht gespeichert.<br>
+      <button class="link" id="demo" type="button">Erst mal mit Beispieldaten ansehen</button></p>
+    <p class="error" id="error" hidden></p>
+  </div>
+</div>
+
+<!-- ---------- App ---------- -->
+<div id="appView" hidden>
+  <nav class="side" id="side" aria-label="Navigation">
+    <button class="nav brand" id="sideToggle" type="button" title="Seitenleiste ein-/ausklappen" aria-expanded="true">
+      <svg class="i" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg><span class="label">Stundenplan Tracker</span>
+    </button>
+    <button class="nav" data-tab="home" type="button" title="Übersicht">
+      <svg class="i" viewBox="0 0 24 24"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/></svg><span class="label">Übersicht</span>
+    </button>
+    <button class="nav" data-tab="teachers" type="button" title="Lehrkräfte">
+      <svg class="i" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.6 3.4-5.5 6.5-5.5s5.7 1.9 6.5 5.5"/><circle cx="17.5" cy="9" r="2.5"/><path d="M17 14.6c2.3.3 3.9 1.9 4.5 4.4"/></svg><span class="label">Lehrkräfte</span>
+    </button>
+    <button class="nav" data-tab="events" type="button" title="Ausfälle & Vertretungen">
+      <svg class="i" viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1.2"/><circle cx="4.5" cy="12" r="1.2"/><circle cx="4.5" cy="18" r="1.2"/></svg><span class="label">Ausfälle & Vertretungen</span>
+    </button>
+    <button class="nav" data-tab="plan" type="button" title="Stundenplan">
+      <svg class="i" viewBox="0 0 24 24"><rect x="3" y="4.5" width="18" height="16" rx="2"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4M8 14h2M14 14h2M8 17.5h2"/></svg><span class="label">Stundenplan</span>
+    </button>
+    <div class="spacer"></div>
+    <div class="demo-badge" id="demoBadge" hidden title="Es werden Beispieldaten angezeigt">Demo<span class="label">: Beispieldaten</span></div>
+    <button class="nav" id="logout" type="button" title="Abmelden">
+      <svg class="i" viewBox="0 0 24 24"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3"/><path d="M10 16l-4-4 4-4M6 12h10"/></svg><span class="label">Abmelden</span>
+    </button>
+  </nav>
+
+  <main class="content">
+    <header class="top">
+      <h1 id="tabTitle">Übersicht</h1>
+      <div class="chips" id="chips"></div>
+      <div class="dates">
+        <input type="date" id="from" aria-label="von"> – <input type="date" id="to" aria-label="bis">
+      </div>
+      <span class="range-info" id="rangeInfo"></span>
+    </header>
+    <p class="error" id="appError" hidden></p>
+
+    <section class="panel" data-panel="home" id="home"></section>
+    <section class="panel" data-panel="teachers" id="teachers" hidden></section>
+    <section class="panel" data-panel="events" id="events" hidden></section>
+    <section class="panel" data-panel="plan" hidden>
+      <div class="card">
+        <div class="plan-head">
+          <div class="seg" role="tablist">
+            <button data-view="week" class="on" type="button">Woche</button>
+            <button data-view="free" type="button">Ausfall</button>
+            <button data-view="subst" type="button">Vertretung</button>
+            <button data-view="both" type="button">Gesamt</button>
+          </div>
+          <div class="weeknav" id="weeknav">
+            <button type="button" id="prev" aria-label="Vorige Woche">‹</button>
+            <span id="weekLabel"></span>
+            <button type="button" id="next" aria-label="Nächste Woche">›</button>
+            <button type="button" id="thisWeek">Heute</button>
+          </div>
+        </div>
+        <div class="plan-wrap"><div id="plan"></div></div>
+        <div class="legend" id="planLegend"></div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const $$ = (s) => [...document.querySelectorAll(s)];
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const fmtDate = (iso) => new Date(iso + "T12:00").toLocaleDateString("de-DE", { weekday: "short", day: "2-digit", month: "2-digit", year: "numeric" });
+const fmtShort = (iso) => new Date(iso + "T12:00").toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" });
+const fmtTime = (t) => String(Math.floor(t / 100)).padStart(2, "0") + ":" + String(t % 100).padStart(2, "0");
+const monthName = (m) => new Date(m + "-15").toLocaleDateString("de-DE", { month: "short" });
+const addDays = (iso, n) => { const d = new Date(iso + "T12:00"); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
+const DAYS = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag"];
+const TABS = { home: "Übersicht", teachers: "Lehrkräfte", events: "Ausfälle & Vertretungen", plan: "Stundenplan" };
+const store = {
+  get(k, area = localStorage) { try { return area.getItem(k); } catch { return null; } },
+  set(k, v, area = localStorage) { try { area.setItem(k, v); } catch {} },
+  del(k, area = localStorage) { try { area.removeItem(k); } catch {} },
+};
+
+const state = { session: null, info: null, stats: null, weekDate: null, view: "week", week: null, filter: "all" };
+
+$("#username").value = store.get("untisUser") || "";
+
+/* ---------- Server ---------- */
+
+async function api(path, body) {
+  const res = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const data = await res.json();
+  if (!data.ok) {
+    if (data.expired) showLogin();
+    throw new Error(data.error || "Fehler");
+  }
+  return data;
+}
+
+function showError(e, where = "#appError") {
+  const el = $(where);
+  el.textContent = e.message === "Failed to fetch" ? "Server läuft nicht – starte server.py." : e.message;
+  el.hidden = false;
+}
+
+function showLogin() {
+  store.del("tracker", sessionStorage);
+  state.session = null;
+  $("#appView").hidden = true;
+  $("#loginView").hidden = false;
+}
+
+async function login(body) {
+  $("#error").hidden = true;
+  $("#go").disabled = true;
+  $("#go").textContent = "Lade Stundenplan…";
+  try {
+    const info = await api("/api/login", body);
+    store.set("tracker", JSON.stringify(info), sessionStorage);
+    start(info);
+  } catch (e) {
+    showError(e, "#error");
+  } finally {
+    $("#go").disabled = false;
+    $("#go").textContent = "Auswerten";
+  }
+}
+
+function start(info, fresh) {
+  state.session = info.session;
+  state.info = info;
+  state.weekDate = info.today;
+  $("#loginView").hidden = true;
+  $("#appView").hidden = false;
+  $("#appError").hidden = true;
+  $("#demoBadge").hidden = !info.demo;
+  $("#from").min = $("#to").min = info.year.from;
+  $("#from").max = $("#to").max = info.year.to;
+  setTab(location.hash.slice(1) in TABS ? location.hash.slice(1) : "home");
+  if (fresh) setRange(info.year.from, info.today);
+  else setRange(info.year.from, info.today, info.stats);
+  loadWeek();
+}
+
+$("#login").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const username = $("#username").value.trim();
+  store.set("untisUser", username);
+  login({ username, password: $("#password").value });
+});
+$("#demo").addEventListener("click", () => login({ demo: true }));
+$("#logout").addEventListener("click", () => { $("#password").value = ""; showLogin(); });
+
+// Nach dem Neuladen angemeldet bleiben (solange der Server läuft)
+try {
+  const saved = JSON.parse(store.get("tracker", sessionStorage) || "null");
+  if (saved && saved.session) start(saved, true);
+} catch {}
+
+/* ---------- Seitenleiste & Tabs ---------- */
+
+function setCollapsed(c) {
+  $("#side").classList.toggle("collapsed", c);
+  $("#sideToggle").setAttribute("aria-expanded", String(!c));
+  store.set("sideCollapsed", c ? "1" : "0");
+}
+setCollapsed(store.get("sideCollapsed") ? store.get("sideCollapsed") === "1" : window.innerWidth < 640);
+$("#sideToggle").addEventListener("click", () => setCollapsed(!$("#side").classList.contains("collapsed")));
+
+function setTab(tab) {
+  $$(".side [data-tab]").forEach((b) => b.classList.toggle("on", b.dataset.tab === tab));
+  $$(".panel").forEach((p) => (p.hidden = p.dataset.panel !== tab));
+  $("#tabTitle").textContent = TABS[tab];
+  history.replaceState(null, "", "#" + tab);
+  if (tab === "plan") renderPlan();
+}
+$$(".side [data-tab]").forEach((b) => b.addEventListener("click", () => {
+  setTab(b.dataset.tab);
+  if (window.innerWidth < 640) setCollapsed(true);
+}));
+
+/* ---------- Zeitraum ---------- */
+
+function ranges() {
+  const r = state.info.ranges.map((x) => ({ ...x, label: { year: "Schuljahr", h1: "1. Halbjahr", h2: "2. Halbjahr" }[x.key] || x.label }));
+  r[0].to = state.info.today; // ganzes Schuljahr = Schulstart bis heute
+  return r;
+}
+
+function renderChips(from, to) {
+  const list = ranges();
+  const match = list.find((r) => r.from === from && r.to === to);
+  $("#chips").innerHTML = list.map((r) =>
+    `<button type="button" class="chip ${match && match.key === r.key ? "on" : ""}" data-key="${r.key}">${r.label}</button>`
+  ).join("") + `<button type="button" class="chip ${match ? "" : "on"}" data-key="custom">Eigener</button>`;
+}
+
+$("#chips").addEventListener("click", (e) => {
+  const key = e.target.dataset.key;
+  if (!key) return;
+  if (key === "custom") { $("#from").focus(); return; }
+  const r = ranges().find((x) => x.key === key);
+  setRange(r.from, r.to);
+});
+
+async function setRange(from, to, preloaded) {
+  $("#from").value = from;
+  $("#to").value = to;
+  renderChips(from, to);
+  try {
+    const stats = preloaded || (await api("/api/stats", { session: state.session, from, to })).stats;
+    state.stats = stats;
+    $("#rangeInfo").textContent = stats.empty ? "Zeitraum hat noch nicht begonnen" : `ausgewertet ${fmtShort(stats.from)} – ${fmtShort(stats.to)}`;
+    renderStats(stats);
+    if (state.view !== "week") renderPlan();
+  } catch (e) { showError(e); }
+}
+
+for (const id of ["#from", "#to"]) {
+  $(id).addEventListener("change", () => {
+    if ($("#from").value && $("#to").value) setRange($("#from").value, $("#to").value);
+  });
+}
+
+/* ---------- Statistik ---------- */
+
+function bars(list, color, empty) {
+  if (!list.length) return `<p class="empty">${empty}</p>`;
+  const max = list[0].count;
+  return `<div class="bars">` + list.slice(0, 8).map((x) => `
+    <div class="bar"><span class="n" title="${esc(x.name)}">${esc(x.name)}</span>
+      <span class="t"><span class="f" style="width:${(x.count / max) * 100}%;background:${color}"></span></span>
+      <span class="c">${x.count}</span></div>`).join("") + `</div>`;
+}
+
+function winner(list, text) {
+  if (!list.length) return "";
+  const top = list.filter((x) => x.count === list[0].count).map((x) => esc(x.name)).join(", ");
+  return `<p class="winner">${text}: <b>${top}</b> (${list[0].count}×)</p>`;
+}
+
+function panel(title, list, color, text, empty) {
+  return `<div class="card"><h2>${title}</h2>${winner(list, text)}${bars(list, color, empty)}</div>`;
+}
+
+function mergeSubjects(s) {
+  const map = {};
+  s.freeBySubject.forEach((x) => (map[x.name] = (map[x.name] || 0) + x.count));
+  s.substBySubject.forEach((x) => (map[x.name] = (map[x.name] || 0) + x.count));
+  return Object.entries(map).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count);
+}
+
+function period6Cards(p) {
+  if (!p || !p.slot) return `<div class="card" style="grid-column:1/-1"><p class="empty">Die 6. Stunde konnte im Stundenplan nicht erkannt werden.</p></div>`;
+  const quote = p.days ? Math.round((p.free / p.days) * 100) : 0;
+  const best = p.best ? (p.bestFrom === p.bestTo ? fmtShort(p.bestFrom) : fmtShort(p.bestFrom) + " – " + fmtShort(p.bestTo)) : "noch keine";
+  const now = p.streak ? (p.streak === 1 ? "6. Stunde zuletzt frei" : "6. Stunden in Folge frei") : "letzte 6. Stunde fand statt";
+  return `
+    <div class="card kpi"><h2>6. Stunde frei <span class="muted">${fmtTime(p.slot[0])}–${fmtTime(p.slot[1])}</span></h2>
+      <div class="v" style="color:var(--free)">${p.free}×</div>
+      <div class="l">von ${p.days} Tagen (${quote} %)</div>
+      <div class="dots" title="Jedes Kästchen = eine freie 6. Stunde">${"<span></span>".repeat(p.free)}</div></div>
+    <div class="card kpi"><h2>Aktuelle Streak</h2><div class="v">${p.streak}</div><div class="l">${now}</div></div>
+    <div class="card kpi fire"><h2>Höchste Streak</h2><div class="v"><span class="flame">🔥</span> ${p.best}</div><div class="l">${best}</div></div>`;
+}
+
+function renderStats(s) {
+  if (s.empty) {
+    const msg = `<div class="card"><p class="empty">Dieser Zeitraum hat noch nicht begonnen – hier gibt es noch nichts auszuwerten.</p></div>`;
+    $("#home").innerHTML = $("#teachers").innerHTML = $("#events").innerHTML = msg;
+    return;
+  }
+  renderHome(s);
+  renderTeachers(s);
+  renderEvents(s);
+}
+
+function renderHome(s) {
+  const pct = (n) => (s.total ? ((n / s.total) * 100).toFixed(1).replace(".", ",") : "0") + " %";
+  const hours = (s.freeMinutes / 60).toFixed(1).replace(".", ",");
+  const maxMonth = Math.max(1, ...s.months.map((m) => m.free + m.subst));
+  $("#home").innerHTML = `
+    <div class="row k4">
+      <div class="card kpi free"><h2>Stunden frei</h2><div class="v">${s.free}</div><div class="l">${pct(s.free)} aller Stunden</div></div>
+      <div class="card kpi subst"><h2>Stunden Vertretung</h2><div class="v">${s.subst}</div><div class="l">${pct(s.subst)} aller Stunden</div></div>
+      <div class="card kpi"><h2>Zeit geschenkt</h2><div class="v">${hours} h</div><div class="l">Zeitstunden frei</div></div>
+      <div class="card kpi"><h2>Komplett freie Tage</h2><div class="v">${s.freeDays.length}</div><div class="l">Schultage ohne Unterricht</div></div>
+    </div>
+    <div class="row k3">${period6Cards(s.period6)}</div>
+    ${s.manual.length ? `<div class="notice">Davon ${s.manual.length} Vertretungsstunde${s.manual.length === 1 ? "" : "n"} nachgetragen:
+      ${esc([...new Set(s.manual.flatMap((m) => m.current))].join(", "))} war fest als Vertretung eingesetzt
+      (${s.manual.map((m) => fmtShort(m.date)).join(", ")}).</div>` : ""}
+    <div class="card"><h2>Verlauf pro Monat</h2>
+      <div class="months">${s.months.map((m) => `
+        <div class="month" title="${m.free} frei, ${m.subst} Vertretung von ${m.total} Stunden">
+          <div class="stack">
+            <div style="height:${(m.subst / maxMonth) * 100}%;background:var(--subst)"></div>
+            <div style="height:${(m.free / maxMonth) * 100}%;background:var(--free)"></div>
+          </div>
+          <small>${monthName(m.month)}</small>
+        </div>`).join("")}</div>
+      <div class="legend"><span><span class="dot" style="background:var(--free)"></span>frei</span>
+        <span><span class="dot" style="background:var(--subst)"></span>Vertretung</span>
+        <span>insgesamt ${s.total} Stunden laut Plan</span></div>
+    </div>`;
+}
+
+function renderTeachers(s) {
+  $("#teachers").innerHTML = `
+    <div class="row k2">
+      ${panel("Frei bei welcher Lehrkraft", s.freeByTeacher, "var(--free)", "Am meisten frei bei", "Kein Ausfall in diesem Zeitraum.")}
+      ${panel("Vertretung, weil diese Lehrkraft fehlte", s.substByTeacher, "var(--subst)", "Am meisten gefehlt", "Keine Vertretung in diesem Zeitraum.")}
+    </div>
+    <div class="row k2">
+      ${panel("Wer hat am meisten vertreten", s.substitutes, "var(--accent)", "Häufigste Vertretung", "Keine Angaben.")}
+      <div class="card"><h2>Nach Fach (frei + Vertretung)</h2>${bars(mergeSubjects(s), "var(--free)", "Keine Daten.")}</div>
+    </div>`;
+}
+
+function renderEvents(s) {
+  const nFree = s.events.filter((e) => e.free).length;
+  const list = s.events.filter((e) => state.filter === "all" || (state.filter === "free" ? e.free : !e.free));
+  $("#events").innerHTML = `<div class="card">
+    <div class="plan-head">
+      <div class="seg" id="evFilter">
+        <button data-f="all" class="${state.filter === "all" ? "on" : ""}" type="button">Alle (${s.events.length})</button>
+        <button data-f="free" class="${state.filter === "free" ? "on" : ""}" type="button">Frei (${nFree})</button>
+        <button data-f="subst" class="${state.filter === "subst" ? "on" : ""}" type="button">Vertretung (${s.events.length - nFree})</button>
+      </div>
+    </div>
+    ${list.length ? `<div class="scroll"><table>
+      <thead><tr><th>Datum</th><th>Zeit</th><th>Fach</th><th>Art</th><th>Lehrkraft</th></tr></thead>
+      <tbody>${list.map((e) => `<tr>
+        <td>${fmtDate(e.date)}</td><td>${fmtTime(e.start)}</td><td>${esc(e.subject)}</td>
+        <td>${e.free ? '<span class="tag free">frei</span>' : `<span class="tag subst">Vertretung${e.manual ? " *" : ""}</span>`}</td>
+        <td>${esc(e.original.join(", "))}${e.status === "substitution" && e.current.length ? " → " + esc(e.current.join(", ")) : ""}</td>
+      </tr>`).join("")}</tbody></table></div>
+      ${s.manual.length ? `<p class="hint">* nachgetragen, in Untis als normaler Unterricht eingetragen</p>` : ""}`
+      : `<p class="empty">In diesem Zeitraum lief alles nach Plan.</p>`}
+  </div>`;
+  $$("#evFilter [data-f]").forEach((b) => b.addEventListener("click", () => { state.filter = b.dataset.f; renderEvents(s); }));
+}
+
+/* ---------- Stundenplan ---------- */
+
+async function loadWeek() {
+  try {
+    state.week = await api("/api/week", { session: state.session, date: state.weekDate });
+    if (state.view === "week") renderPlan();
+  } catch (e) { showError(e); }
+}
+
+$("#prev").addEventListener("click", () => { state.weekDate = addDays(state.weekDate, -7); loadWeek(); });
+$("#next").addEventListener("click", () => { state.weekDate = addDays(state.weekDate, 7); loadWeek(); });
+$("#thisWeek").addEventListener("click", () => { state.weekDate = state.info.today; loadWeek(); });
+$$(".seg [data-view]").forEach((b) => b.addEventListener("click", () => setView(b.dataset.view)));
+
+function setView(v) {
+  state.view = v;
+  $$(".seg [data-view]").forEach((b) => b.classList.toggle("on", b.dataset.view === v));
+  $("#weeknav").style.visibility = v === "week" ? "visible" : "hidden";
+  renderPlan();
+}
+
+function renderPlan() {
+  if (!state.info) return;
+  if (state.view === "week") renderWeek(); else renderHeat(state.view);
+}
+
+function cellFor(l) {
+  const teachers = l.status === "substitution"
+    ? `${esc(l.original.join(", "))} → <b>${esc(l.current.join(", ") || "?")}</b>`
+    : esc((l.current.length ? l.current : l.original).join(", "));
+  let cls = "", badge = "";
+  if (l.free) { cls = "free"; badge = "frei"; }
+  else if (l.status === "substitution") { cls = "subst"; badge = l.manual ? "Vertretung *" : "Vertretung"; }
+  else if (l.status === "change" || l.status === "additional") { cls = "change"; badge = l.status === "additional" ? "Zusatz" : "geändert"; }
+  else if (l.status === "exam") { cls = "exam"; badge = "Prüfung"; }
+  return `<div class="cell ${cls}" title="${esc(l.text)}">
+    ${badge ? `<div class="b">${badge}</div>` : ""}
+    <div class="s">${esc(l.subject)}${l.statt ? ` <span class="muted">statt ${esc(l.statt)}</span>` : ""}</div>
+    <div class="m">${teachers}${l.room ? " · " + esc(l.room) : ""}</div>
+  </div>`;
+}
+
+function renderWeek() {
+  const w = state.week;
+  if (!w) return;
+  $("#weekLabel").textContent = `${fmtShort(w.days[0])} – ${fmtShort(w.days[4])}`;
+  const outside = w.days[4] < state.info.year.from || w.days[0] > state.info.loadedTo;
+  let html = `<div class="tt"><div></div>` + w.days.map((d, i) =>
+    `<div class="h ${d === w.today ? "today" : ""}">${DAYS[i].slice(0, 2)}<small>${fmtShort(d)}</small></div>`).join("");
+  for (const g of w.grid) {
+    html += `<div class="time"><b>${esc(g.name)}.</b>${fmtTime(g.start)}</div>`;
+    for (const d of w.days) {
+      const ls = w.lessons.filter((l) => l.date === d && l.start < g.end && g.start < l.end
+        && !(l.status === "cancelled" && !l.free));
+      html += `<div class="slot">${ls.length ? ls.map(cellFor).join("") : `<div class="cell none"></div>`}</div>`;
+    }
+  }
+  html += `</div>`;
+  if (outside) html = `<p class="empty">Für diese Woche gibt es keine Daten (geladen bis ${fmtDate(state.info.loadedTo)}).</p>`;
+  $("#plan").innerHTML = html;
+  $("#planLegend").innerHTML = `
+    <span><span class="dot" style="background:var(--free)"></span>frei</span>
+    <span><span class="dot" style="background:var(--subst)"></span>Vertretung (* nachgetragen)</span>
+    <span><span class="dot" style="background:var(--change)"></span>geändert / Zusatz</span>
+    <span><span class="dot" style="background:var(--exam)"></span>Prüfung</span>`;
+}
+
+const HEAT = {
+  free:  { value: (c) => c.free, color: "var(--free)", word: "frei", short: "frei",
+           legend: "Je grüner, desto öfter war die Stunde im gewählten Zeitraum frei." },
+  subst: { value: (c) => c.subst, color: "var(--subst)", word: "Vertretung", short: "Vertr.",
+           legend: "Je oranger, desto öfter gab es in dieser Stunde Vertretung." },
+  both:  { value: (c) => c.free + c.subst, color: "var(--accent)", word: "nicht nach Plan", short: "gesamt",
+           legend: "Frei und Vertretung zusammen: je blauer, desto öfter lief die Stunde nicht nach Plan. Der Balken zeigt grün = frei, orange = Vertretung." },
+};
+
+function renderHeat(mode) {
+  const s = state.stats, grid = state.info.grid, h = HEAT[mode];
+  if (!s || s.empty) { $("#plan").innerHTML = `<p class="empty">Für diesen Zeitraum gibt es noch keine Daten.</p>`; $("#planLegend").innerHTML = ""; return; }
+  const max = Math.max(...s.heat.flat().map(h.value));
+  const tops = [];
+  grid.forEach((g, i) => { for (let wd = 0; wd < 5; wd++) if (max > 0 && h.value(s.heat[wd][i]) === max) tops.push(`${DAYS[wd]} ${g.name}. Stunde`); });
+  let html = `<p class="heat-sum">${max > 0
+      ? `Am häufigsten ${h.word}: <b>${tops.join(", ")}</b> (${max}×)`
+      : `In diesem Zeitraum gab es keine Stunde mit ${mode === "free" ? "Ausfall" : h.word}.`}</p>`;
+  html += `<div class="tt"><div></div>` + DAYS.map((d) => `<div class="h">${d.slice(0, 2)}</div>`).join("");
+  grid.forEach((g, i) => {
+    html += `<div class="time"><b>${esc(g.name)}.</b>${fmtTime(g.start)}</div>`;
+    for (let wd = 0; wd < 5; wd++) {
+      const c = s.heat[wd][i];
+      if (!c.total) { html += `<div class="heat" style="border-style:dashed"></div>`; continue; }
+      const v = h.value(c), a = max ? v / max : 0;
+      const detail = mode === "both"
+        ? `<span class="split"><i style="width:${v ? (c.free / v) * 100 : 0}%;background:var(--free)"></i><i style="width:${v ? (c.subst / v) * 100 : 0}%;background:var(--subst)"></i></span>
+           <span>${c.free}× frei · ${c.subst}× Vertr.</span>`
+        : `<span>${Math.round((v / c.total) * 100)} % · ${mode === "free" ? `${c.subst}× Vertr.` : `${c.free}× frei`}</span>`;
+      html += `<div class="heat ${v && v === max ? "top" : ""}" style="background:color-mix(in srgb, ${h.color} ${Math.round(a * 55)}%, var(--card))"
+        title="${DAYS[wd]}, ${g.name}. Stunde: ${c.free}× frei, ${c.subst}× Vertretung von ${c.total} Stunden">
+        <b>${v}× ${h.short}</b>${detail}</div>`;
+    }
+  });
+  $("#plan").innerHTML = html + `</div>`;
+  $("#planLegend").innerHTML = `<span>${h.legend} Umrandet = Spitzenreiter.</span>`;
+}
+</script>
+</body>
+</html>

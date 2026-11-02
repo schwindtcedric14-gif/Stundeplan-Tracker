@@ -44,7 +44,8 @@ SESSION_TTL = 3 * 3600
 # Es werden nur Stunden umgewandelt, die Untis als normalen Unterricht zeigt (keine Zusatzstunden).
 NACHTRAEGLICHE_VERTRETUNGEN = [
     # Herr Bilo (Bil) war bis zu den Herbstferien fest für Herrn Kramer (Kr, krank) in Physik eingeplant
-    {"lehrkraft": ["Bil", "Bilo"], "von": "2026-08-10", "bis": "2026-10-02",
+    # Gilt nur für den eigenen Untis-Login – andere Nutzer sehen ihre Daten unverändert.
+    {"nur_fuer": ["CedrSchw"], "lehrkraft": ["Bil", "Bilo"], "von": "2026-08-10", "bis": "2026-10-02",
      "fehlte": "Kr", "statt": "Physik"},
 ]
 
@@ -303,12 +304,15 @@ def teacher_matches(label, names):
     return (label or "").strip().lower() in names
 
 
-def apply_overrides(lessons):
+def apply_overrides(lessons, user=None):
+    who = (user or "").strip().lower()
+    rules = [r for r in NACHTRAEGLICHE_VERTRETUNGEN
+             if not r.get("nur_fuer") or who in [n.lower() for n in r["nur_fuer"]]]
     for l in lessons:
         l.setdefault("manual", False)
         if l["status"] != "normal":
             continue
-        for rule in NACHTRAEGLICHE_VERTRETUNGEN:
+        for rule in rules:
             names = [n.lower() for n in rule["lehrkraft"]]
             if not (rule["von"] <= l["date"] <= rule["bis"]):
                 continue
@@ -327,9 +331,9 @@ def apply_overrides(lessons):
     return lessons
 
 
-def prepare(lessons):
+def prepare(lessons, user=None):
     """Doppelte entfernen, sortieren und markieren, welche Ausfälle wirklich frei waren."""
-    lessons = apply_overrides(lessons)
+    lessons = apply_overrides(lessons, user)
     seen, items = set(), []
     for l in lessons:
         key = (l["date"], l["start"], l["end"], l["subject"], l["status"], tuple(l["original"]))
@@ -551,7 +555,8 @@ def load_demo():
 def fill_session(sid, loaded):
     """Geladene Untis-Daten in die Sitzung schreiben (beim Login und beim Aktualisieren)."""
     year_start, year_end, load_to, grid, lessons = loaded
-    items = prepare(lessons)
+    cred = SESSIONS[sid].get("cred")
+    items = prepare(lessons, cred[0] if cred else None)
     SESSIONS[sid].update({"items": items, "grid": grid or guess_grid(items), "yearStart": year_start,
                           "yearEnd": year_end, "loadTo": load_to, "loadedAt": time.time()})
 
